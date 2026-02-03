@@ -88,6 +88,23 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
     print("Sections Found = ${snap.docs.length}");
   }
 
+  Future<void> addLecture(Map<String, dynamic> lectureData) async {
+    final conflict = await FirebaseFirestore.instance
+        .collection("timetable")
+        .where("day", isEqualTo: lectureData["day"])
+        .where("time", isEqualTo: lectureData["time"])
+        .where("venueId", isEqualTo: lectureData["venueId"])
+        .where("teacherId", isEqualTo: lectureData["teacherId"])
+        .get();
+
+    if (conflict.docs.isNotEmpty) {
+      throw "This venue is already booked for this time";
+    }
+
+    await FirebaseFirestore.instance
+        .collection("timetable")
+        .add(lectureData);
+  }
 
   Future<void> loadSubjects() async {
     if (selectedDepartment == null) return;
@@ -112,6 +129,7 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
 
   Future<void> saveLecture() async {
     if (selectedDepartment == null ||
+        selectedSemester == null ||
         selectedSection == null ||
         selectedSubjectId == null ||
         selectedTeacherId == null ||
@@ -124,23 +142,10 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
       return;
     }
 
-    final docId = buildDocId(selectedDay!, selectedTimeSlot!, selectedVenueId!);
+    setState(() => saving = true);
 
     try {
-      setState(() => saving = true);
-
-      final docRef = _db.collection("timetable").doc(docId);
-      final docSnap = await docRef.get();
-
-      if (docSnap.exists) {
-        setState(() => saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Venue already booked at this time")),
-        );
-        return;
-      }
-
-      await docRef.set({
+      final lectureData = {
         "day": selectedDay,
         "time": selectedTimeSlot,
         "venueId": selectedVenueId,
@@ -150,7 +155,10 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
         "subjectId": selectedSubjectId,
         "teacherId": selectedTeacherId,
         "createdAt": FieldValue.serverTimestamp(),
-      });
+      };
+
+
+      await addLecture(lectureData);
 
       setState(() {
         selectedDay = null;
@@ -158,17 +166,16 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
         selectedVenueId = null;
         selectedTeacherId = null;
         selectedSubjectId = null;
+        saving = false;
       });
 
-      setState(() => saving = false);
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lecture saved")),
+        const SnackBar(content: Text("Lecture saved successfully ")),
       );
     } catch (e) {
       setState(() => saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text(e.toString())),
       );
     }
   }

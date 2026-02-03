@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:time_table/screens/login_screen.dart';
+import 'package:time_table/utils/notification_service.dart';
 
 import 'screens/splash_screen.dart';
 import 'screens/signup_screen.dart';
@@ -9,6 +10,7 @@ import 'screens/role_redirect_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await NotificationService.init();
   runApp(const MyApp());
 }
 

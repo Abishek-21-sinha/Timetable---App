@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ManageTeachersScreen extends StatefulWidget {
@@ -30,9 +31,9 @@ class _ManageTeachersScreenState extends State<ManageTeachersScreen> {
     final email = emailC.text.trim().toLowerCase();
     final phone = phoneC.text.trim();
 
-    if (name.isEmpty) {
+    if (name.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter teacher name")),
+        const SnackBar(content: Text("Name & Email required")),
       );
       return;
     }
@@ -40,25 +41,41 @@ class _ManageTeachersScreenState extends State<ManageTeachersScreen> {
     try {
       setState(() => loading = true);
 
-      if (email.isNotEmpty) {
-        final dup = await _db
-            .collection("teachers")
-            .where("email", isEqualTo: email)
-            .get();
+      // 🔹 1. Check duplicate teacher in Firestore
+      final dup = await _db
+          .collection("teachers")
+          .where("email", isEqualTo: email)
+          .limit(1)
+          .get();
 
-        if (dup.docs.isNotEmpty) {
-          setState(() => loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Teacher email already exists")),
-          );
-          return;
-        }
+      if (dup.docs.isNotEmpty) {
+        throw "Teacher already exists";
       }
 
-      await _db.collection("teachers").add({
+      // 🔹 2. Create Firebase Auth user
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email: email,
+        password: "teacher@123", // default password
+      );
+
+      final uid = cred.user!.uid;
+
+      // 🔹 3. Save teacher profile (UID based)
+      await _db.collection("teachers").doc(uid).set({
+        "uid": uid,
         "name": name,
         "email": email,
         "phone": phone,
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+
+      // 🔹 4. ALSO save in users collection (VERY IMPORTANT)
+      await _db.collection("users").doc(uid).set({
+        "uid": uid,
+        "email": email,
+        "role": "teacher",
+        "isActive": true,
         "createdAt": FieldValue.serverTimestamp(),
       });
 
@@ -69,7 +86,9 @@ class _ManageTeachersScreenState extends State<ManageTeachersScreen> {
       setState(() => loading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Teacher added")),
+        const SnackBar(
+          content: Text("Teacher added successfully (password: teacher@123)"),
+        ),
       );
     } catch (e) {
       setState(() => loading = false);

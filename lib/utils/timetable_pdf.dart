@@ -18,6 +18,9 @@ class TimetablePdfService {
     "03:00-04:00",
   ];
 
+  // =====================================================
+  // STUDENT / SECTION WEEKLY PDF
+  // =====================================================
   Future<Uint8List> generateWeeklyPdf({
     required String department,
     required int semester,
@@ -30,6 +33,10 @@ class TimetablePdfService {
         .where("section", isEqualTo: section)
         .get();
 
+    if (snap.docs.isEmpty) {
+      throw "No timetable found";
+    }
+
     final subjects = await _db.collection("subjects").get();
     final teachers = await _db.collection("teachers").get();
     final rooms = await _db.collection("classrooms").get();
@@ -37,14 +44,16 @@ class TimetablePdfService {
     final subjectMap = {
       for (var d in subjects.docs) d.id: d["name"].toString()
     };
+
+    // 🔥 FIXED: teacherId = document ID
     final teacherMap = {
       for (var d in teachers.docs) d.id: d["name"].toString()
     };
+
     final roomMap = {
       for (var d in rooms.docs) d.id: d["name"].toString()
     };
 
-    // grid[day][slotIndex]
     final Map<String, List<String>> grid = {
       for (var d in days) d: List.filled(timeSlots.length, "")
     };
@@ -58,19 +67,105 @@ class TimetablePdfService {
 
       if (!days.contains(day)) continue;
 
-      final slotIndex = timeSlots.indexOf(time);
-      if (slotIndex == -1) continue;
+      final index = timeSlots.indexOf(time);
+      if (index == -1) continue;
 
       final cell =
-          "${subjectMap[data["subjectId"]]}\n${teacherMap[data["teacherId"]]}\n${roomMap[data["venueId"]]}";
+          "${subjectMap[data["subjectId"]] ?? ""}\n"
+          "${teacherMap[data["teacherId"]] ?? ""}\n"
+          "${roomMap[data["venueId"]] ?? ""}";
 
-      grid[day]![slotIndex] = cell;
+      grid[day]![index] = cell;
 
-      if (duration == 2 && slotIndex + 1 < timeSlots.length) {
-        grid[day]![slotIndex + 1] = "__MERGED__";
+      if (duration == 2 && index + 1 < timeSlots.length) {
+        grid[day]![index + 1] = "__MERGED__";
       }
     }
 
+    return _buildPdf(
+      title:
+      "Department: $department | Semester: $semester | Section: $section",
+      grid: grid,
+    );
+  }
+
+  // =====================================================
+  // TEACHER WEEKLY PDF ✅ FINAL FIX
+  // =====================================================
+  Future<Uint8List> generateTeacherWeeklyPdf({
+    required String teacherId, // 🔑 teachers document ID
+  }) async {
+    // 1️⃣ Get timetable
+    final snap = await _db
+        .collection("timetable")
+        .where("teacherId", isEqualTo: teacherId)
+        .get();
+
+    if (snap.docs.isEmpty) {
+      throw "No timetable found for this teacher";
+    }
+
+    // 2️⃣ Lookups
+    final subjects = await _db.collection("subjects").get();
+    final rooms = await _db.collection("classrooms").get();
+
+    // 🔥 FIX: teacher name directly by docId
+    final teacherSnap =
+    await _db.collection("teachers").doc(teacherId).get();
+
+    final teacherName =
+    teacherSnap.exists ? teacherSnap["name"] : "Teacher";
+
+    final subjectMap = {
+      for (var d in subjects.docs) d.id: d["name"].toString()
+    };
+
+    final roomMap = {
+      for (var d in rooms.docs) d.id: d["name"].toString()
+    };
+
+    // 3️⃣ Grid
+    final Map<String, List<String>> grid = {
+      for (var d in days) d: List.filled(timeSlots.length, "")
+    };
+
+    // 4️⃣ Fill grid
+    for (var doc in snap.docs) {
+      final data = doc.data();
+
+      final day = data["day"];
+      final time = data["time"];
+      final duration = data["duration"] ?? 1;
+
+      if (!days.contains(day)) continue;
+
+      final index = timeSlots.indexOf(time);
+      if (index == -1) continue;
+
+      final cell =
+          "${subjectMap[data["subjectId"]] ?? ""}\n"
+          "${roomMap[data["venueId"]] ?? ""}";
+
+      grid[day]![index] = cell;
+
+      if (duration == 2 && index + 1 < timeSlots.length) {
+        grid[day]![index + 1] = "__MERGED__";
+      }
+    }
+
+    return _buildPdf(
+      title: "Teacher: $teacherName (Weekly Timetable)",
+      grid: grid,
+    );
+  }
+
+  // =====================================================
+  // COMMON PDF BUILDER
+  // =====================================================
+  Future<Uint8List> _buildPdf({
+    required String title,
+    required Map<String, List<String>> grid,
+  }) async {
     final pdf = pw.Document();
 
     pdf.addPage(
@@ -92,7 +187,7 @@ class TimetablePdfService {
                 ),
                 pw.SizedBox(height: 6),
                 pw.Text(
-                  "Department: $department | Semester: $semester | Section: $section",
+                  title,
                   style: pw.TextStyle(
                       fontSize: 12, fontWeight: pw.FontWeight.bold),
                 ),
@@ -100,7 +195,6 @@ class TimetablePdfService {
             ),
           ),
           pw.SizedBox(height: 12),
-
           pw.Table(
             border: pw.TableBorder.all(width: 0.6),
             columnWidths: {
@@ -109,25 +203,20 @@ class TimetablePdfService {
                 i: const pw.FixedColumnWidth(90),
             },
             children: [
-              // Header row
               pw.TableRow(
                 children: [
-                  headerCell("Day"),
-                  ...timeSlots.map(headerCell),
+                  _header("Day"),
+                  ...timeSlots.map(_header),
                 ],
               ),
-
-              // Day rows
               for (var day in days)
                 pw.TableRow(
                   children: [
-                    headerCell(day),
+                    _header(day),
                     ...List.generate(timeSlots.length, (i) {
                       final text = grid[day]![i];
-                      if (text == "__MERGED__") {
-                        return pw.SizedBox();
-                      }
-                      return bodyCell(text);
+                      if (text == "__MERGED__") return pw.SizedBox();
+                      return _cell(text);
                     }),
                   ],
                 ),
@@ -140,27 +229,22 @@ class TimetablePdfService {
     return pdf.save();
   }
 
-  pw.Widget headerCell(String text) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(4),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        text,
-        textAlign: pw.TextAlign.center,
-        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-      ),
-    );
-  }
+  pw.Widget _header(String text) => pw.Container(
+    padding: const pw.EdgeInsets.all(4),
+    alignment: pw.Alignment.center,
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+    ),
+  );
 
-  pw.Widget bodyCell(String text) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(4),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        text,
-        textAlign: pw.TextAlign.center,
-        style: const pw.TextStyle(fontSize: 8),
-      ),
-    );
-  }
+  pw.Widget _cell(String text) => pw.Container(
+    padding: const pw.EdgeInsets.all(4),
+    alignment: pw.Alignment.center,
+    child: pw.Text(
+      text,
+      textAlign: pw.TextAlign.center,
+      style: const pw.TextStyle(fontSize: 8),
+    ),
+  );
 }
