@@ -89,22 +89,32 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
   }
 
   Future<void> addLecture(Map<String, dynamic> lectureData) async {
+    final day = lectureData["day"].toString().trim();
+    final time = lectureData["time"].toString().trim();
+    final venueId = lectureData["venueId"].toString().trim();
+
     final conflict = await FirebaseFirestore.instance
         .collection("timetable")
-        .where("day", isEqualTo: lectureData["day"])
-        .where("time", isEqualTo: lectureData["time"])
-        .where("venueId", isEqualTo: lectureData["venueId"])
-        .where("teacherId", isEqualTo: lectureData["teacherId"])
+        .where("day", isEqualTo: day)
+        .where("time", isEqualTo: time)
+        .where("venueId", isEqualTo: venueId)
+        .limit(1)
         .get();
 
     if (conflict.docs.isNotEmpty) {
-      throw "This venue is already booked for this time";
+      throw "❌ Venue already booked for this time slot";
     }
 
     await FirebaseFirestore.instance
         .collection("timetable")
-        .add(lectureData);
+        .add({
+      ...lectureData,
+      "day": day,
+      "time": time,
+      "venueId": venueId,
+    });
   }
+
 
   Future<void> loadSubjects() async {
     if (selectedDepartment == null) return;
@@ -126,6 +136,24 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
   String buildDocId(String day, String time, String venueId) {
     return "${day}_${time}_$venueId";
   }
+  Future<void> checkVenueConflict({
+    required String day,
+    required String time,
+    required String venueId,
+    String? ignoreDocId, // edit ke liye
+  }) async {
+    final snap = await FirebaseFirestore.instance
+        .collection("timetable")
+        .where("day", isEqualTo: day)
+        .where("time", isEqualTo: time)
+        .where("venueId", isEqualTo: venueId)
+        .get();
+
+    for (final doc in snap.docs) {
+      if (ignoreDocId != null && doc.id == ignoreDocId) continue;
+      throw "This venue is already booked for this time slot";
+    }
+  }
 
   Future<void> saveLecture() async {
     if (selectedDepartment == null ||
@@ -142,6 +170,8 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
       return;
     }
 
+    if (saving) return; //  double click protection
+
     setState(() => saving = true);
 
     try {
@@ -157,9 +187,10 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
         "createdAt": FieldValue.serverTimestamp(),
       };
 
-
+      //  CONFLICT CHECK + SAVE (inside addLecture)
       await addLecture(lectureData);
 
+      //  RESET FORM
       setState(() {
         selectedDay = null;
         selectedTimeSlot = null;
@@ -170,15 +201,21 @@ class _AddLectureScreenState extends State<AddLectureScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lecture saved successfully ")),
+        const SnackBar(content: Text("Lecture saved successfully")),
       );
+
+      // optional
+      // Navigator.pop(context);
+
     } catch (e) {
       setState(() => saving = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
     }
   }
+
 
   Widget drop<T>({
     required String label,

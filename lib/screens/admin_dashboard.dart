@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:time_table/screens/admin_lecture_list_screen.dart';
 import 'package:time_table/screens/admin_master_data_screen.dart';
 
 import 'login_screen.dart';
@@ -75,7 +76,18 @@ class AdminDashboard extends StatelessWidget {
                 );
               },
             ),
-
+            dashBtn(
+              icon: Icons.edit_calendar,
+              title: "View / Edit Timetable",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminLectureListScreen(),
+                  ),
+                );
+              },
+            ),
             dashBtn(
               icon: Icons.account_tree,
               title: "Manage Departments",
