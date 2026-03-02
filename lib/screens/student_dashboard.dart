@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'login_screen.dart';
 import 'generate_pdf_screen.dart';
+import 'student_timetable_screen.dart';   // 👈 ADD THIS
 
 class StudentDashboard extends StatelessWidget {
   const StudentDashboard({super.key});
@@ -28,10 +29,33 @@ class StudentDashboard extends StatelessWidget {
           ),
         ],
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+
+            /// ✅ VIEW TIMETABLE BUTTON
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.visibility),
+                label: const Text("View Timetable"),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StudentTimetableScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            /// ✅ GENERATE PDF BUTTON (existing)
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -41,11 +65,14 @@ class StudentDashboard extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const GeneratePdfScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const GeneratePdfScreen(),
+                    ),
                   );
                 },
               ),
             ),
+
           ],
         ),
       ),

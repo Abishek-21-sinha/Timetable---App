@@ -35,11 +35,31 @@ class _AdminMasterDataScreenState extends State<AdminMasterDataScreen>
   final venueCapC = TextEditingController();
 
   bool loading = false;
+  final List<String> days = ["MON","TUE","WED","THU","FRI","SAT"];
+
+  final List<String> baseSlots = [
+    "09:00-10:00",
+    "10:00-11:00",
+    "11:00-12:00",
+    "12:00-01:00",
+    "02:00-03:00",
+    "03:00-04:00",
+  ];
+
+  Map<String, int> lunchSlots = {
+    "MON": 3,
+    "TUE": 3,
+    "WED": 3,
+    "THU": 3,
+    "FRI": 3,
+    "SAT": 3,
+  };
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
+    loadLunchSlots();
   }
 
   @override
@@ -56,6 +76,24 @@ class _AdminMasterDataScreenState extends State<AdminMasterDataScreen>
     venueNameC.dispose();
     venueCapC.dispose();
     super.dispose();
+  }
+  Future<void> loadLunchSlots() async {
+    final doc = await _db.collection("settings").doc("timetable").get();
+
+    if (doc.exists && doc.data()!.containsKey("lunchSlots")) {
+      setState(() {
+        lunchSlots = Map<String, int>.from(doc["lunchSlots"]);
+      });
+    }
+  }
+  Future<void> saveLunchSlots() async {
+    await _db.collection("settings").doc("timetable").set({
+      "lunchSlots": lunchSlots,
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Lunch slots updated")),
+    );
   }
 
   Future<void> addDepartment() async {
@@ -361,6 +399,7 @@ class _AdminMasterDataScreenState extends State<AdminMasterDataScreen>
             Tab(text: "Subject"),
             Tab(text: "Teacher"),
             Tab(text: "Venue"),
+            Tab(text: "Lunch Slot"),
           ],
         ),
       ),
@@ -888,6 +927,67 @@ class _AdminMasterDataScreenState extends State<AdminMasterDataScreen>
                   ),
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+
+                  const Text(
+                    "Set Lunch Slot Per Day",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  ...days.map((day) {
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: DropdownButtonFormField<int>(
+                        value: lunchSlots[day],
+
+                        items: List.generate(
+                          baseSlots.length,
+                              (i) => DropdownMenuItem(
+                            value: i,
+                            child: Text("After ${baseSlots[i]}"),
+                          ),
+                        ),
+
+                        onChanged: (v) {
+                          setState(() {
+                            lunchSlots[day] = v!;
+                          });
+                        },
+
+                        decoration: InputDecoration(
+                          labelText: day,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    );
+
+                  }).toList(),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: saveLunchSlots,
+                      child: const Text("Save Lunch Settings"),
+                    ),
+                  ),
+
+                ],
+              ),
             ),
           ),
         ],

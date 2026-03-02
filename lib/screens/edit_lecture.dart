@@ -20,20 +20,19 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
 
   bool saving = false;
 
-  String? department;
-  int? semester;
-  String? section;
   String? subjectId;
   String? teacherId;
   String? venueId;
   String? day;
   String? time;
+  String? group;
 
   List<Map<String, dynamic>> subjects = [];
   List<Map<String, dynamic>> teachers = [];
   List<Map<String, dynamic>> venues = [];
 
   final List<String> days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
   final List<String> timeSlots = [
     "09:00-10:00",
     "10:00-11:00",
@@ -43,6 +42,8 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
     "03:00-04:00",
   ];
 
+  final List<String> groups = ["ALL", "G1", "G2"];
+
   @override
   void initState() {
     super.initState();
@@ -50,48 +51,58 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
   }
 
   // =====================================================
-  // LOAD INITIAL DATA
+  // LOAD DATA
   // =====================================================
+
   Future<void> loadInitialData() async {
-    final d = widget.lectureData;
+    final data = widget.lectureData;
 
-    department = d["department"];
-    semester = d["semester"];
-    section = d["section"];
-    subjectId = d["subjectId"];
-    teacherId = d["teacherId"];
-    venueId = d["venueId"];
-    day = d["day"];
-    time = d["time"];
+    subjectId = data["subjectId"];
+    teacherId = data["teacherId"];
+    venueId = data["venueId"];
+    day = data["day"];
+    time = data["time"];
+    group = data["group"] ?? "ALL";
 
-    final subSnap = await _db.collection("subjects").get();
+    final subjectSnap = await _db.collection("subjects").get();
     final teacherSnap = await _db.collection("teachers").get();
     final venueSnap = await _db.collection("classrooms").get();
 
-    subjects = subSnap.docs
-        .map((e) => {"id": e.id, "name": e["name"]})
+    subjects = subjectSnap.docs
+        .map((d) => {
+      "id": d.id,
+      "name": d["name"],
+    })
         .toList();
 
     teachers = teacherSnap.docs
-        .map((e) => {"id": e.id, "name": e["name"]})
+        .map((d) => {
+      "id": d.id,
+      "name": d["name"],
+    })
         .toList();
 
     venues = venueSnap.docs
-        .map((e) => {"id": e.id, "name": e["name"]})
+        .map((d) => {
+      "id": d.id,
+      "name": d["name"],
+    })
         .toList();
 
     if (mounted) setState(() {});
   }
 
   // =====================================================
-  // UPDATE LECTURE WITH CONFLICT CHECK
+  // UPDATE WITH CONFLICT CHECK
   // =====================================================
+
   Future<void> updateLecture() async {
-    if (day == null ||
-        time == null ||
+    if (subjectId == null ||
+        teacherId == null ||
         venueId == null ||
-        subjectId == null ||
-        teacherId == null) {
+        day == null ||
+        time == null ||
+        group == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all fields")),
       );
@@ -101,7 +112,11 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
     setState(() => saving = true);
 
     try {
-      // 🔴 CONFLICT CHECK
+
+      /// ======================
+      /// 1️⃣ VENUE CONFLICT CHECK
+      /// ======================
+
       final conflict = await _db
           .collection("timetable")
           .where("day", isEqualTo: day)
@@ -109,40 +124,84 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
           .where("venueId", isEqualTo: venueId)
           .get();
 
-      for (var d in conflict.docs) {
-        if (d.id != widget.lectureId) {
-          throw "This venue is already booked for this time";
+      for (var doc in conflict.docs) {
+        if (doc.id != widget.lectureId) {
+          throw "❌ This venue is already booked at this time";
         }
       }
 
-      // ✅ UPDATE
+      /// ======================
+      /// 2️⃣ MAX 3 PER DAY CHECK (Exclude current lecture)
+      /// ======================
+
+      final teacherDaySnap = await _db
+          .collection("timetable")
+          .where("teacherId", isEqualTo: teacherId)
+          .where("day", isEqualTo: day)
+          .get();
+
+      int count = 0;
+
+      for (var doc in teacherDaySnap.docs) {
+        if (doc.id != widget.lectureId) {
+          count++;
+        }
+      }
+
+      if (count >= 3) {
+        throw "❌ Teacher already has 3 lectures on $day";
+      }
+
+      /// ======================
+      /// 3️⃣ NO CONSECUTIVE CHECK
+      /// ======================
+
+      final currentIndex = timeSlots.indexOf(time!);
+
+      for (var doc in teacherDaySnap.docs) {
+
+        if (doc.id == widget.lectureId) continue;
+
+        final existingTime = doc["time"].toString();
+        final existingIndex = timeSlots.indexOf(existingTime);
+
+        if ((existingIndex - currentIndex).abs() == 1) {
+          throw "❌ Teacher cannot have consecutive lectures on $day";
+        }
+      }
+
+      /// ======================
+      /// UPDATE
+      /// ======================
+
       await _db.collection("timetable").doc(widget.lectureId).update({
-        "day": day,
-        "time": time,
-        "venueId": venueId,
         "subjectId": subjectId,
         "teacherId": teacherId,
+        "venueId": venueId,
+        "day": day,
+        "time": time,
+        "group": group,
         "updatedAt": FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Lecture updated successfully")),
-        );
-        Navigator.pop(context);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Lecture updated successfully")),
+      );
+
+      Navigator.pop(context);
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text(e.toString())),
       );
     }
 
-    if (mounted) setState(() => saving = false);
+    setState(() => saving = false);
   }
-
   // =====================================================
   // UI
   // =====================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,15 +212,16 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
+            /// SUBJECT
             DropdownButtonFormField<String>(
               value: subjectId,
               items: subjects
-                  .map<DropdownMenuItem<String>>(
-                    (s) => DropdownMenuItem<String>(
-                  value: s["id"] as String,
+                  .map<DropdownMenuItem<String>>((s) {
+                return DropdownMenuItem<String>(
+                  value: s["id"].toString(),
                   child: Text(s["name"].toString()),
-                ),
-              )
+                );
+              })
                   .toList(),
               onChanged: (v) {
                 setState(() => subjectId = v);
@@ -171,15 +231,16 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
 
             const SizedBox(height: 12),
 
+            /// TEACHER
             DropdownButtonFormField<String>(
               value: teacherId,
               items: teachers
-                  .map<DropdownMenuItem<String>>(
-                    (t) => DropdownMenuItem<String>(
-                  value: t["id"] as String,
+                  .map<DropdownMenuItem<String>>((t) {
+                return DropdownMenuItem<String>(
+                  value: t["id"].toString(),
                   child: Text(t["name"].toString()),
-                ),
-              )
+                );
+              })
                   .toList(),
               onChanged: (v) {
                 setState(() => teacherId = v);
@@ -189,16 +250,15 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
 
             const SizedBox(height: 12),
 
+            /// VENUE
             DropdownButtonFormField<String>(
               value: venueId,
-              items: venues
-                  .map<DropdownMenuItem<String>>(
-                    (v) => DropdownMenuItem<String>(
-                  value: v["id"] as String,
-                  child: Text(v["name"].toString()),
-                ),
-              )
-                  .toList(),
+              items: venues.map<DropdownMenuItem<String>>((v) {
+                return DropdownMenuItem<String>(
+                  value: v["id"].toString(),
+                  child: Text("${v["id"]} - ${v["name"]}"),
+                );
+              }).toList(),
               onChanged: (v) {
                 setState(() => venueId = v);
               },
@@ -207,34 +267,49 @@ class _EditLectureScreenState extends State<EditLectureScreen> {
 
             const SizedBox(height: 12),
 
+            /// DAY
             DropdownButtonFormField<String>(
               value: day,
               items: days
-                  .map(
-                    (d) => DropdownMenuItem(
-                  value: d,
-                  child: Text(d),
-                ),
-              )
+                  .map((d) => DropdownMenuItem<String>(
+                value: d,
+                child: Text(d),
+              ))
                   .toList(),
               onChanged: (v) => setState(() => day = v),
               decoration: const InputDecoration(labelText: "Day"),
             ),
+
             const SizedBox(height: 12),
 
+            /// TIME
             DropdownButtonFormField<String>(
               value: time,
               items: timeSlots
-                  .map(
-                    (t) => DropdownMenuItem(
-                  value: t,
-                  child: Text(t),
-                ),
-              )
+                  .map((t) => DropdownMenuItem<String>(
+                value: t,
+                child: Text(t),
+              ))
                   .toList(),
               onChanged: (v) => setState(() => time = v),
               decoration: const InputDecoration(labelText: "Time Slot"),
             ),
+
+            const SizedBox(height: 12),
+
+            /// GROUP ✅ NEW
+            DropdownButtonFormField<String>(
+              value: group,
+              items: groups
+                  .map((g) => DropdownMenuItem<String>(
+                value: g,
+                child: Text(g),
+              ))
+                  .toList(),
+              onChanged: (v) => setState(() => group = v),
+              decoration: const InputDecoration(labelText: "Group"),
+            ),
+
             const SizedBox(height: 24),
 
             SizedBox(

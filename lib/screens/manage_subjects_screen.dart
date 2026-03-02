@@ -222,7 +222,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> {
                     .collection("subjects")
                     .where("department", isEqualTo: selectedDepartment)
                     .where("semester", isEqualTo: selectedSemester)
-                    .orderBy("name")
+                    // .orderBy("name")
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {

@@ -225,7 +225,7 @@ class _ManageSectionsScreenState extends State<ManageSectionsScreen> {
                     .collection("sections")
                     .where("department", isEqualTo: selectedDepartment)
                     .where("semester", isEqualTo: selectedSemester)
-                    .orderBy("section")
+                    // .orderBy("section")
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {

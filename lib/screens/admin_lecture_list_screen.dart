@@ -71,8 +71,11 @@ class _AdminLectureListScreenState extends State<AdminLectureListScreen> {
             .orderBy("day")
             .snapshots(),
         builder: (context, snapshot) {
+
           if (snapshot.hasError) {
-            return const Center(child: Text("Something went wrong"));
+            return Center(
+              child: Text(snapshot.error.toString()),
+            );
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -89,31 +92,43 @@ class _AdminLectureListScreenState extends State<AdminLectureListScreen> {
             padding: const EdgeInsets.all(12),
             itemCount: docs.length,
             itemBuilder: (context, index) {
+
               final doc = docs[index];
               final d = doc.data() as Map<String, dynamic>;
 
               final subject =
                   subjectMap[d["subjectId"]] ?? d["subjectId"];
+
               final teacher =
                   teacherMap[d["teacherId"]] ?? d["teacherId"];
-              final venue =
-                  venueMap[d["venueId"]] ?? d["venueId"];
+
+              final venueId = d["venueId"] ?? "";
+
+              final venueName =
+                  venueMap[d["venueId"]] ?? "";
 
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.schedule),
+
                   title: Text(
                     "$subject (${d["section"]})",
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+
                   subtitle: Text(
                     "${d["day"]} | ${d["time"]}\n"
                         "Teacher: $teacher\n"
-                        "Venue: $venue",
+                        "Venue: $venueId - $venueName",
                   ),
+
                   isThreeLine: true,
+
                   trailing: PopupMenuButton<String>(
                     onSelected: (v) async {
+
                       if (v == "edit") {
                         Navigator.push(
                           context,
@@ -124,10 +139,13 @@ class _AdminLectureListScreenState extends State<AdminLectureListScreen> {
                             ),
                           ),
                         );
-                      } else if (v == "delete") {
+                      }
+
+                      if (v == "delete") {
                         await deleteLecture(doc.id);
                       }
                     },
+
                     itemBuilder: (_) => const [
                       PopupMenuItem(
                         value: "edit",
