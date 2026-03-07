@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:time_table/utils/timetable_pdf.dart';
-// import 'timetable_pdf.dart';  // tumhara existing PDF service
 
 class StudentViewTimetableScreen extends StatefulWidget {
   const StudentViewTimetableScreen({super.key});
@@ -16,6 +15,7 @@ class _StudentViewTimetableScreenState
     extends State<StudentViewTimetableScreen> {
 
   Uint8List? pdfBytes;
+  bool loading = true;
 
   @override
   void initState() {
@@ -24,34 +24,46 @@ class _StudentViewTimetableScreenState
   }
 
   Future<void> loadPdf() async {
+    try {
+      final service = TimetablePdfService();
 
-    final service = TimetablePdfService();
+      final bytes = await service.generateWeeklyPdf(
+        department: "MCA4TH",
+        semester: 4,
+        section: "A",
+      );
 
-    final bytes = await service.generateWeeklyPdf(
-      department: "MCA4TH",   // yaha profile se pass karo
-      semester: 4,
-      section: "A",
-    );
+      setState(() {
+        pdfBytes = bytes;
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        loading = false;
+      });
 
-    setState(() {
-      pdfBytes = bytes;
-    });
+      debugPrint("PDF Error: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
 
-    if (pdfBytes == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Timetable"),
+        title: const Text("My Weekly Timetable"),
       ),
-      body: SfPdfViewer.memory(pdfBytes!),
+
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : pdfBytes == null
+          ? const Center(child: Text("Failed to load timetable"))
+          : SfPdfViewer.memory(
+        pdfBytes!,
+        pageLayoutMode: PdfPageLayoutMode.single,
+        canShowScrollHead: true,
+        canShowScrollStatus: true,
+      ),
     );
   }
 }

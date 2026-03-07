@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -26,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> login() async {
     if (emailC.text.trim().isEmpty || passC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(" Fill Email and Password ")),
+        const SnackBar(content: Text("Fill Email and Password")),
       );
       return;
     }
@@ -39,20 +39,18 @@ class _LoginScreenState extends State<LoginScreen> {
         password: passC.text.trim(),
       );
 
-      //  Reload latest user data
       await userCred.user!.reload();
       final user = FirebaseAuth.instance.currentUser;
 
-      //  Email verification check
+      /// EMAIL VERIFY CHECK
       if (user != null && user.emailVerified == false) {
         setState(() => loading = false);
 
-        //  Resend verification email (optional)
         await user.sendEmailVerification();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(" Email is not verify ! Please Gmail check  "),
+            content: Text("Email not verified. Check your Gmail."),
           ),
         );
 
@@ -60,20 +58,68 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      /// FIRESTORE USER DATA CHECK
+      final userDoc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user!.uid)
+          .get();
+
+      final data = userDoc.data();
+
+      if (data == null) {
+        await FirebaseAuth.instance.signOut();
+        setState(() => loading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("User data not found")),
+        );
+        return;
+      }
+
+      /// TEACHER ADMIN APPROVAL CHECK
+      if (data["role"] == "teacher") {
+        if (data["status"] == "pending") {
+          await FirebaseAuth.instance.signOut();
+          setState(() => loading = false);
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text("Account Pending"),
+                content: const Text(
+                    "Your account is waiting for admin approval.\nPlease try again later."),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("OK"),
+                  ),
+                ],
+              );
+            },
+          );
+          return;
+        }
+      }
+
       setState(() => loading = false);
 
-      //  Redirect Screen
+      /// SUCCESS LOGIN
       Navigator.pushReplacementNamed(context, "/redirect");
+
     } on FirebaseAuthException catch (e) {
       setState(() => loading = false);
 
       String msg = "Login Failed!";
       if (e.code == "user-not-found") {
-        msg = " User-not-found! Please Signup ";
+        msg = "User not found! Please Signup";
       } else if (e.code == "wrong-password") {
-        msg = " Password is Wrong ";
+        msg = "Wrong Password";
       } else if (e.code == "invalid-email") {
-        msg = " Invalid Email";
+        msg = "Invalid Email";
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -82,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() => loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(" Error: $e")),
+        SnackBar(content: Text("Error: $e")),
       );
     }
   }

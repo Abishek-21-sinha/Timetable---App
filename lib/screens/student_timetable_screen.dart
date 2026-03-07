@@ -134,12 +134,10 @@ class _StudentTimetableScreenState
                 builder: (context, constraints) {
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: constraints.maxWidth,
-                      ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SizedBox(
+                        width: timeSlots.length * 140,
                         child: DataTable(
                           columnSpacing: 20,
                           dataRowMinHeight: 60,

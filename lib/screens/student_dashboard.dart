@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:time_table/utils/notification_service.dart';
 
 import 'login_screen.dart';
 import 'generate_pdf_screen.dart';
@@ -72,6 +73,17 @@ class StudentDashboard extends StatelessWidget {
                 },
               ),
             ),
+
+            // //Test notification
+            // ElevatedButton(
+            //   onPressed: () {
+            //     NotificationService.showAlert(
+            //       title: "Test Notification",
+            //       body: "Notification working!",
+            //     );
+            //   },
+            //   child: Text("Test Notification"),
+            // )
 
           ],
         ),

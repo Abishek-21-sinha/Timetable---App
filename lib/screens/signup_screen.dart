@@ -105,6 +105,7 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    /// STUDENT VALIDATION
     if (selectedRole == "student") {
       if (selectedDepartment == null ||
           selectedSection == null ||
@@ -117,10 +118,34 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     }
 
+    /// TEACHER VALIDATION
     if (selectedRole == "teacher") {
       if (selectedTeacherId == null || selectedTeacherId!.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Select Teacher")),
+        );
+        return;
+      }
+
+      /// GET TEACHER DATA FROM FIRESTORE
+      final teacherDoc =
+      await _db.collection("teachers").doc(selectedTeacherId).get();
+
+      if (!teacherDoc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Teacher not found")),
+        );
+        return;
+      }
+
+      final teacherData = teacherDoc.data()!;
+      final teacherEmail = (teacherData["email"] ?? "").toString().toLowerCase();
+
+      /// EMAIL MATCH CHECK
+      if (teacherEmail != email) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Use the same email that admin registered")),
         );
         return;
       }
@@ -141,7 +166,8 @@ class _SignupScreenState extends State<SignupScreen> {
         "name": name,
         "email": email,
         "role": selectedRole,
-        "isActive": true,
+        "isActive": selectedRole == "teacher" ? false : true,
+        "status": selectedRole == "teacher" ? "pending" : "approved",
         "createdAt": FieldValue.serverTimestamp(),
       };
 
@@ -177,7 +203,6 @@ class _SignupScreenState extends State<SignupScreen> {
       );
     }
   }
-
   Widget drop<T>({
     required String label,
     required T? value,

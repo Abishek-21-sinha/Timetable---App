@@ -1,10 +1,12 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
+
   static final FlutterLocalNotificationsPlugin _notifications =
   FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
+
     const AndroidInitializationSettings androidSettings =
     AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -12,12 +14,19 @@ class NotificationService {
     InitializationSettings(android: androidSettings);
 
     await _notifications.initialize(settings);
+
+    // Android 13 permission
+    await _notifications
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
   }
 
   static Future<void> showAlert({
     required String title,
     required String body,
   }) async {
+
     const AndroidNotificationDetails androidDetails =
     AndroidNotificationDetails(
       'lecture_channel',

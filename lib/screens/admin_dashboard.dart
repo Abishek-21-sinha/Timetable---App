@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:time_table/screens/AdminTeacherApproval.dart';
 import 'package:time_table/screens/admin_lecture_list_screen.dart';
 import 'package:time_table/screens/admin_master_data_screen.dart';
 
@@ -153,7 +154,27 @@ class AdminDashboard extends StatelessWidget {
                 );
               },
             ),
-
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.pending_actions),
+                label: const Text("Teacher Requests"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TeacherApprovalScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
             dashBtn(
               icon: Icons.picture_as_pdf,
               title: "Generate Weekly PDF",
